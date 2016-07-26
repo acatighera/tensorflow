@@ -44,7 +44,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-from tensorflow.models.image.cifar10 import cifar10
+import cifar10
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -86,8 +86,10 @@ def train():
     init = tf.initialize_all_variables()
 
     # Start running operations on the Graph.
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.05)
     sess = tf.Session(config=tf.ConfigProto(
-        log_device_placement=FLAGS.log_device_placement))
+        log_device_placement=FLAGS.log_device_placement,
+        gpu_options=gpu_options))
     sess.run(init)
 
     # Start the queue runners.
@@ -123,7 +125,7 @@ def train():
 
 
 def main(argv=None):  # pylint: disable=unused-argument
-  cifar10.maybe_download_and_extract()
+  #cifar10.maybe_download_and_extract()
   if tf.gfile.Exists(FLAGS.train_dir):
     tf.gfile.DeleteRecursively(FLAGS.train_dir)
   tf.gfile.MakeDirs(FLAGS.train_dir)
