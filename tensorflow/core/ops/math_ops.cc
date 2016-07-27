@@ -23,6 +23,7 @@ namespace tensorflow {
 typedef shape_inference::Dimension Dimension;
 typedef shape_inference::InferenceContext InferenceContext;
 typedef shape_inference::Shape Shape;
+static constexpr auto kUnknownDim = InferenceContext::kUnknownDim;
 
 REGISTER_OP("AddN")
     .Input("inputs: N * T")
@@ -54,7 +55,7 @@ Status BroadcastBinaryOpShapeFn(InferenceContext* c) {
   const Shape* shape_x = c->input(0);
   const Shape* shape_y = c->input(1);
   if (!c->RankKnown(shape_x) || !c->RankKnown(shape_y)) {
-    c->set_output(0, c->CreateUnknownShape());
+    c->set_output(0, c->UnknownShape());
     return Status::OK();
   }
   const int32 rank_x = c->Rank(shape_x);
@@ -65,7 +66,7 @@ Status BroadcastBinaryOpShapeFn(InferenceContext* c) {
   // and
   // pad with 1 to make them the same length.
   std::vector<const Dimension*> dims;
-  const Dimension* dim_one = rank_x == rank_y ? nullptr : c->CreateDim(1);
+  const Dimension* dim_one = rank_x == rank_y ? nullptr : c->MakeDim(1);
   for (int i = 0; i < rank_out; ++i) {
     const auto* dim_x = i < (rank_out - rank_x)
                             ? dim_one
@@ -91,7 +92,7 @@ Status BroadcastBinaryOpShapeFn(InferenceContext* c) {
       } else if (c->Value(dim_y) == 1) {
         dims.push_back(dim_x);
       } else {
-        dims.push_back(c->CreateUnknownDim());
+        dims.push_back(c->UnknownDim());
       }
     } else if (c->Value(dim_x) == 1 || c->Value(dim_y) == 1) {
       if (c->Value(dim_x) == 1 && dim_y != dim_one) {
@@ -109,7 +110,7 @@ Status BroadcastBinaryOpShapeFn(InferenceContext* c) {
     }
   }
 
-  c->set_output(0, c->CreateShape(dims));
+  c->set_output(0, c->MakeShape(dims));
   return Status::OK();
 }
 
@@ -764,7 +765,7 @@ REGISTER_OP("Select")
                 for (int i = 1; i < data_rank; ++i) {
                   dims.push_back(c->Dim(data, i));
                 }
-                data = c->CreateShape(dims);
+                data = c->MakeShape(dims);
               }
             } else {
               // Must be the same as the data vectors.
@@ -1026,8 +1027,7 @@ Status SegmentReductionShapeFn(InferenceContext* c) {
   TF_RETURN_IF_ERROR(c->Subshape(data_shape, 1, &subshape));
 
   const Shape* out;
-  TF_RETURN_IF_ERROR(
-      c->Concatenate(c->CreateShape({c->CreateUnknownDim()}), subshape, &out));
+  TF_RETURN_IF_ERROR(c->Concatenate(c->Vector(kUnknownDim), subshape, &out));
   c->set_output(0, out);
   return Status::OK();
 }
@@ -1059,7 +1059,7 @@ segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
 first dimension.  Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("SegmentMean")
@@ -1089,7 +1089,7 @@ segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
 first dimension.  Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("SegmentProd")
@@ -1118,7 +1118,7 @@ segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
 first dimension.  Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("SegmentMin")
@@ -1147,7 +1147,7 @@ segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
 first dimension.  Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("SegmentMax")
@@ -1175,7 +1175,7 @@ segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
 first dimension.  Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("UnsortedSegmentSum")
@@ -1201,16 +1201,16 @@ REGISTER_OP("UnsortedSegmentSum")
 
         // Get the value of the num_segments input tensor.
         const Dimension* num_segments_dim;
-        TF_RETURN_IF_ERROR(c->CreateDimForScalarInput(2, &num_segments_dim));
+        TF_RETURN_IF_ERROR(c->MakeDimForScalarInput(2, &num_segments_dim));
 
         // Output is {segment_id_rank} + s_data[segment_id_rank:].
         const Shape* s_data_suffix;
         TF_RETURN_IF_ERROR(
             c->Subshape(s_data, c->Rank(s_segment_ids), &s_data_suffix));
-        TF_RETURN_IF_ERROR(c->Concatenate(c->CreateShape({num_segments_dim}),
-                                          s_data_suffix, &out));
+        TF_RETURN_IF_ERROR(
+            c->Concatenate(c->Vector(num_segments_dim), s_data_suffix, &out));
       } else {
-        out = c->CreateUnknownShape();
+        out = c->UnknownShape();
       }
       c->set_output(0, out);
       return Status::OK();
@@ -1223,10 +1223,10 @@ Segmentation](../../api_docs/python/math_ops.md#segmentation) for an explanation
 of segments.
 
 Computes a tensor such that
-\\(output_i = \sum_j data_j\\) where sum is over `j` such
-that `segment_ids[j] == i`. Unlike `SegmentSum`, `segment_ids`
+`(output[i] = sum_{j...} data[j...]` where the sum is over tuples `j...` such
+that `segment_ids[j...] == i`.  Unlike `SegmentSum`, `segment_ids`
 need not be sorted and need not cover all values in the full
-  range of valid values.
+range of valid values.
 
 If the sum is empty for a given segment ID `i`, `output[i] = 0`.
 
@@ -1236,11 +1236,11 @@ If the sum is empty for a given segment ID `i`, `output[i] = 0`.
 <img style="width:100%" src="../../images/UnsortedSegmentSum.png" alt>
 </div>
 
-segment_ids: A 1-D tensor whose rank is equal to the rank of `data`'s
-first dimension.
+segment_ids: A tensor whose shape is a prefix of `data.shape`.
 
-output: Has same shape as data, except for dimension 0 which
-has size `num_segments`.
+output: Has same shape as data, except for the first `segment_ids.rank`
+  dimensions, which are replaced with a single dimension which has size
+  `num_segments`.
 
 )doc");
 
@@ -1288,7 +1288,7 @@ indices: A 1-D tensor. Has same rank as `segment_ids`.
 segment_ids: A 1-D tensor. Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 )doc");
 
 REGISTER_OP("SparseSegmentMean")
@@ -1312,7 +1312,7 @@ indices: A 1-D tensor. Has same rank as `segment_ids`.
 segment_ids: A 1-D tensor. Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 
 )doc");
 
@@ -1355,7 +1355,7 @@ indices: A 1-D tensor. Has same rank as `segment_ids`.
 segment_ids: A 1-D tensor. Values should be sorted and can be repeated.
 
 output: Has same shape as data, except for dimension 0 which
-has size `k`, the number of segments.
+  has size `k`, the number of segments.
 
 )doc");
 
@@ -1435,7 +1435,7 @@ REGISTER_OP("Range")
       const Tensor* limit_t = c->input_tensor(1);
       const Tensor* delta_t = c->input_tensor(2);
       if (start_t == nullptr || limit_t == nullptr || delta_t == nullptr) {
-        c->set_output(0, c->CreateShape({c->CreateUnknownDim()}));
+        c->set_output(0, c->Vector(kUnknownDim));
         return Status::OK();
       }
       const int32 start = start_t->scalar<int32>()();
@@ -1449,7 +1449,7 @@ REGISTER_OP("Range")
         return errors::InvalidArgument("Requires delta > 0: ", delta);
       }
       const int32 size = (limit - start + delta - 1) / delta;
-      c->set_output(0, c->CreateShape({c->CreateDim(size)}));
+      c->set_output(0, c->Vector(size));
       return Status::OK();
     }))
     .Doc(R"doc(
@@ -1489,12 +1489,12 @@ REGISTER_OP("LinSpace")
                                       " for 'num'");
       const Tensor* num_t = c->input_tensor(2);
       if (num_t == nullptr) {
-        c->set_output(0, c->CreateShape({c->CreateUnknownDim()}));
+        c->set_output(0, c->Vector(kUnknownDim));
         return Status::OK();
       }
       const int64 num = num_t->scalar<int32>()();
       if (num <= 0) return errors::InvalidArgument("Requires num > 0: ", num);
-      c->set_output(0, c->CreateShape({c->CreateDim(num)}));
+      c->set_output(0, c->Vector(num));
       return Status::OK();
     }))
     .Doc(R"doc(
@@ -1807,50 +1807,70 @@ product: Pairwise cross product of the vectors in `a` and `b`.
 REGISTER_OP("Cumsum")
     .Input("x: T")
     .Input("axis: int32")
-    .Attr("reverse: bool")
+    .Attr("exclusive: bool = false")
+    .Attr("reverse: bool = false")
     .Output("out: T")
     .Attr("T: numbertype")
     .Doc(R"doc(
 Compute the cumulative sum of the tensor `x` along `axis`.
 
-The output `out` at any given index i is equal to the sum of all
-elements `x_j` of `x` with j <= i.
-
-By setting the `reverse` operation to `True`, the sum is performed in the
-reverse order. In contrast to using `tf.reverse`, this avoids copying the
-tensor.
-
-For example:
-
+By default, this op performs an inclusive cumsum, which means that the first
+element of the input is identical to the first element of the output:
 ```prettyprint
-# tensor 'x' is [1, 2, 3, 4, 5]
-tf.cumsum(x)               ==> [1, 3, 6, 10, 15]
-tf.cumsum(x, reverse=True) ==> [15, 14, 12, 9, 5]
+tf.cumsum([a, b, c]) ==> [a, a + b, a + b + c]
+```
+
+By setting the `exclusive` kwarg to `True`, an exclusive cumsum is
+performed instead:
+```prettyprint
+tf.cumsum([a, b, c], exclusive=True) ==> [0, a, a + b]
+```
+
+By setting the `reverse` kwarg to `True`, the cumsum is performed in the
+opposite direction:
+```prettyprint
+tf.cumsum([a, b, c], reverse=True) ==> [a + b + c, b + c, c]
+```
+This is more efficient than using separate `tf.reverse` ops.
+
+The `reverse` and `exclusive` kwargs can also be combined:
+```prettyprint
+tf.cumsum([a, b, c], exclusive=True, reverse=True) ==> [b + c, c, 0]
 ```
 )doc");
 
 REGISTER_OP("Cumprod")
     .Input("x: T")
     .Input("axis: int32")
-    .Attr("reverse: bool")
+    .Attr("exclusive: bool = false")
+    .Attr("reverse: bool = false")
     .Output("out: T")
     .Attr("T: numbertype")
     .Doc(R"doc(
 Compute the cumulative product of the tensor `x` along `axis`.
 
-The output `out` at any given index i is equal to the product of all
-elements `x_j` of `x` with j <= i.
-
-By setting the `reverse` operation to `True`, the product is performed in the
-reverse order. In contrast to using `tf.reverse`, this avoids copying the
-tensor.
-
-For example:
-
+By default, this op performs an inclusive cumprod, which means that the first
+element of the input is identical to the first element of the output:
 ```prettyprint
-# tensor 'x' is [1, 2, 3, 4, 5]
-tf.cumprod(x)               ==> [1, 2, 6, 24, 120]
-tf.cumprod(x, reverse=True) ==> [120, 120, 60, 20, 5]
+tf.cumprod([a, b, c]) ==> [a, a * b, a * b * c]
+```
+
+By setting the `exclusive` kwarg to `True`, an exclusive cumprod is
+performed instead:
+```prettyprint
+tf.cumprod([a, b, c], exclusive=True) ==> [0, a, a * b]
+```
+
+By setting the `reverse` kwarg to `True`, the cumprod is performed in the
+opposite direction:
+```prettyprint
+tf.cumprod([a, b, c], reverse=True) ==> [a * b * c, b * c, c]
+```
+This is more efficient than using separate `tf.reverse` ops.
+
+The `reverse` and `exclusive` kwargs can also be combined:
+```prettyprint
+tf.cumprod([a, b, c], exclusive=True, reverse=True) ==> [b * c, c, 0]
 ```
 )doc");
 

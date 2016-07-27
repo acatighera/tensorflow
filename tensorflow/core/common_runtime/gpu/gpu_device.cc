@@ -761,7 +761,7 @@ struct CudaVersion {
 // "configure" uses the specific name to substitute the following string.
 // If you change it, make sure you modify "configure" as well.
 // Unofficial setting. DO NOT SUBMIT!!!
-std::vector<CudaVersion> supported_cuda_compute_capabilities = {CudaVersion("3.0"),};
+std::vector<CudaVersion> supported_cuda_compute_capabilities = {CudaVersion("5.2"),};
 
 std::vector<CudaVersion> GetSupportedCudaComputeCapabilities() {
   auto cuda_caps = supported_cuda_compute_capabilities;

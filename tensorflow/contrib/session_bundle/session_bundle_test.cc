@@ -124,7 +124,7 @@ void BasicTest(const string& export_path) {
       outputs[0], test::AsTensor<float>({2, 2.5, 3, 3.5}, TensorShape({4, 1})));
 }
 
-TEST(LoadSessionBundleFromPath, BasicTensorflowContrib) {
+TEST(LoadSessionBundleFromPath, BasicTensorFlowContrib) {
   const string export_path = test_util::TestSrcDirPath(
       "session_bundle/example/half_plus_two/00000123");
   BasicTest(export_path);
@@ -275,6 +275,14 @@ TEST_F(SessionBundleTest, InitOp_TooManyValues) {
   EXPECT_TRUE(StringPiece(status_.error_message())
                   .contains("Expected exactly one serving init op"))
       << status_.error_message();
+}
+
+TEST_F(SessionBundleTest, PossibleExportDirectory) {
+  const string export_path = SetupExport([](MetaGraphDef*) {});
+  EXPECT_TRUE(IsPossibleExportDirectory(export_path));
+
+  EXPECT_FALSE(
+      IsPossibleExportDirectory(io::JoinPath(export_path, kAssetsDirectory)));
 }
 
 }  // namespace

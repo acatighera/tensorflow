@@ -23,8 +23,8 @@ from tensorflow.contrib import layers
 from tensorflow.contrib.framework.python.ops import variables as contrib_variables
 from tensorflow.contrib.learn.python.learn.estimators import _sklearn
 from tensorflow.contrib.learn.python.learn.estimators import dnn_linear_combined
-from tensorflow.contrib.learn.python.learn.estimators import sdca_optimizer
 from tensorflow.contrib.learn.python.learn.estimators.base import DeprecatedMixin
+from tensorflow.contrib.linear_optimizer.python import sdca_optimizer
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import logging_ops
 from tensorflow.python.platform import tf_logging as logging
@@ -75,7 +75,7 @@ class LinearClassifier(dnn_linear_combined.DNNLinearCombinedClassifier):
   # Or estimator using the SDCAOptimizer.
   estimator = LinearClassifier(
      feature_columns=[occupation, education_x_occupation],
-     optimizer=tf.contrib.learn.SDCAOptimizer(
+     optimizer=tf.contrib.linear_optimizer.SDCAOptimizer(
        example_id_column='example_id',
        symmetric_l2_regularization=2.0
      ))
@@ -98,6 +98,9 @@ class LinearClassifier(dnn_linear_combined.DNNLinearCombinedClassifier):
   * for each `column` in `feature_columns`:
     - if `column` is a `SparseColumn`, a feature with `key=column.name`
       whose `value` is a `SparseTensor`.
+    - if `column` is a `WeightedSparseColumn`, two features: the first with
+      `key` the id column name, the second with `key` the weight column name.
+      Both features' `value` must be a `SparseTensor`.
     - if `column` is a `RealValuedColumn`, a feature with `key=column.name`
       whose `value` is a `Tensor`.
     - if `feature_columns` is `None`, then `input` must contains only real
@@ -119,7 +122,9 @@ class LinearClassifier(dnn_linear_combined.DNNLinearCombinedClassifier):
       feature_columns: An iterable containing all the feature columns used by
         the model. All items in the set should be instances of classes derived
         from `FeatureColumn`.
-      model_dir: Directory to save model parameters, graph and etc.
+      model_dir: Directory to save model parameters, graph and etc. This can also
+        be used to load checkpoints from the directory into a estimator to continue
+        training a previously saved model.
       n_classes: number of target classes. Default is binary classification.
       weight_column_name: A string defining feature column name representing
         weights. It is used to down weight or boost examples during training. It
@@ -189,19 +194,22 @@ class LinearClassifier(dnn_linear_combined.DNNLinearCombinedClassifier):
 
     train_ops = self._linear_optimizer.get_train_step(
         self._linear_feature_columns, self._target_column.weight_column_name,
-        "logistic_loss", features, targets, columns_to_variables, global_step)
+        self._loss_type(), features, targets, columns_to_variables, global_step)
 
     return train_ops, loss
 
   def _get_eval_ops(self, features, targets, metrics=None):
     self._validate_linear_feature_columns(features)
-    return super(LinearClassifier, self)._get_eval_ops(
-        features, targets, metrics)
+    return super(LinearClassifier, self)._get_eval_ops(features, targets,
+                                                       metrics)
 
   def _get_predict_ops(self, features):
     """See base class."""
     self._validate_linear_feature_columns(features)
     return super(LinearClassifier, self)._get_predict_ops(features)
+
+  def _loss_type(self):
+    return "logistic_loss"
 
   @property
   def weights_(self):
@@ -250,6 +258,9 @@ class LinearRegressor(dnn_linear_combined.DNNLinearCombinedRegressor):
   * for column in `feature_columns`:
     - if isinstance(column, `SparseColumn`):
         key=column.name, value=a `SparseTensor`
+    - if isinstance(column, `WeightedSparseColumn`):
+        {key=id column name, value=a `SparseTensor`,
+         key=weight column name, value=a `SparseTensor`}
     - if isinstance(column, `RealValuedColumn`):
         key=column.name, value=a `Tensor`
     - if `feature_columns` is `None`:
@@ -271,7 +282,9 @@ class LinearRegressor(dnn_linear_combined.DNNLinearCombinedRegressor):
       feature_columns: An iterable containing all the feature columns used by
         the model. All items in the set should be instances of classes derived
         from `FeatureColumn`.
-      model_dir: Directory to save model parameters, graph, etc.
+      model_dir: Directory to save model parameters, graph, etc. This can also
+        be used to load checkpoints from the directory into a estimator to continue
+        training a previously saved model.
       weight_column_name: A string defining feature column name representing
         weights. It is used to down weight or boost examples during training. It
         will be multiplied by the loss of the example.
@@ -324,8 +337,8 @@ class LinearRegressor(dnn_linear_combined.DNNLinearCombinedRegressor):
 
   def _get_eval_ops(self, features, targets, metrics=None):
     self._validate_linear_feature_columns(features)
-    return super(LinearRegressor, self)._get_eval_ops(
-        features, targets, metrics)
+    return super(LinearRegressor, self)._get_eval_ops(features, targets,
+                                                      metrics)
 
   def _get_predict_ops(self, features):
     """See base class."""
