@@ -49,7 +49,7 @@ import cifar10_input
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters.
-tf.app.flags.DEFINE_integer('batch_size', 8,
+tf.app.flags.DEFINE_integer('batch_size', 128,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', '/Users/alex/Projects/data/',
                            """Path to the CIFAR-10 data directory.""")
@@ -151,16 +151,11 @@ def distorted_inputs():
   """
   if not FLAGS.data_dir:
     raise ValueError('Please supply a data_dir')
-  clean_data_dir = os.path.join(FLAGS.data_dir, 'clean')
+#  clean_data_dir = os.path.join(FLAGS.data_dir, 'clean')
   data_dir = os.path.join(FLAGS.data_dir, 'cluttered')
 
   images, labels = cifar10_input.distorted_inputs(data_dir=data_dir,
                                                   batch_size=FLAGS.batch_size)
-
-  clean_images, clean_labels = cifar10_input.distorted_inputs(data_dir=clean_data_dir,
-                                                      batch_size=FLAGS.batch_size, clean=1)
-  images = clean_images + images
-  labels = clean_labels + labels
 
   if FLAGS.use_fp16:
     images = tf.cast(images, tf.float16)

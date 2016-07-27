@@ -28,7 +28,7 @@ import tensorflow as tf
 # Process images of this size. Note that this differs from the original CIFAR
 # image size of 32 x 32. If one alters this number, then the entire model
 # architecture will change and any model would need to be retrained.
-IMAGE_SIZE = 75
+IMAGE_SIZE = 200
 
 # Global constants describing the CIFAR-10 data set.
 NUM_CLASSES = 2
@@ -65,8 +65,8 @@ def read_cifar10(filename_queue, clean = 0):
   # Dimensions of the images in the CIFAR-10 dataset.
   # See http://www.cs.toronto.edu/~kriz/cifar.html for a description of the
   # input format.
-  result.height = 75
-  result.width = 75
+  result.height = 200
+  result.width = 200
   result.depth = 3
 
   # read whole files
