@@ -35,6 +35,8 @@ NUM_CLASSES = 2
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 100
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 50
 
+current_tag = 0
+
 
 def read_cifar10(filename_queue, clean = 0):
   """Reads and parses examples from CIFAR10 data files.
@@ -100,6 +102,7 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
   # Create a queue that shuffles the examples, and then
   # read 'batch_size' images + labels from the example queue.
   num_preprocess_threads = 16
+  global current_tag
   if shuffle:
     images, label_batch = tf.train.shuffle_batch(
         [image, label],
@@ -115,7 +118,8 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
         capacity=min_queue_examples + 3 * batch_size)
 
   # Display the training images in the visualizer.
-  tf.image_summary('images', images)
+  tf.image_summary('images' + `current_tag`, images)
+  current_tag += 1
 
   return images, tf.reshape(label_batch, [batch_size])
 

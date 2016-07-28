@@ -45,6 +45,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 import cifar10
+import freeze_graph
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -120,7 +121,24 @@ def train():
       # Save the model checkpoint periodically.
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
         checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+        input_checkpoint_path = checkpoint_path + '-' + `step`
         saver.save(sess, checkpoint_path, global_step=step)
+        tf.train.write_graph(sess.graph_def, FLAGS.train_dir, `step` + 'input_graph.pb')
+
+        input_saver_def_path = ""
+        input_binary = False
+        output_node_names = "softmax_linear/softmax_linear" 
+        restore_op_name = "save/restore_all"
+        filename_tensor_name = "save/Const:0"
+        input_graph_path = os.path.join(FLAGS.train_dir, '0input_graph.pb')
+        output_graph_path = os.path.join(FLAGS.train_dir, `step` + 'output_graph.pb')
+        clear_devices = False
+
+        freeze_graph.freeze_graph(input_graph_path, input_saver_def_path,
+                                  input_binary, input_checkpoint_path,
+                                  output_node_names, restore_op_name,
+                                  filename_tensor_name, output_graph_path,
+                                  clear_devices, "")
 
 
 def main(argv=None):  # pylint: disable=unused-argument

@@ -49,9 +49,9 @@ import cifar10_input
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters.
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 16,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_string('data_dir', '/Users/alex/Projects/data/',
+tf.app.flags.DEFINE_string('data_dir', '/home/alex/Projects/data/',
                            """Path to the CIFAR-10 data directory.""")
 tf.app.flags.DEFINE_boolean('use_fp16', False,
                             """Train the model using fp16.""")
@@ -151,11 +151,16 @@ def distorted_inputs():
   """
   if not FLAGS.data_dir:
     raise ValueError('Please supply a data_dir')
-#  clean_data_dir = os.path.join(FLAGS.data_dir, 'clean')
+  clean_data_dir = os.path.join(FLAGS.data_dir, 'clean')
   data_dir = os.path.join(FLAGS.data_dir, 'cluttered')
 
-  images, labels = cifar10_input.distorted_inputs(data_dir=data_dir,
+  clut_images, clut_labels = cifar10_input.distorted_inputs(data_dir=data_dir,
                                                   batch_size=FLAGS.batch_size)
+
+  clean_images, clean_labels = cifar10_input.distorted_inputs(data_dir=clean_data_dir,
+                                                  batch_size=FLAGS.batch_size, clean=1)
+  images = clut_images + clean_images
+  labels = clut_labels + clean_labels
 
   if FLAGS.use_fp16:
     images = tf.cast(images, tf.float16)
@@ -265,6 +270,7 @@ def inference(images):
                                           stddev=1/192.0, wd=0.0)
     biases = _variable_on_cpu('biases', [NUM_CLASSES],
                               tf.constant_initializer(0.0))
+    print("name::::" + scope.name)
     softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
     _activation_summary(softmax_linear)
 
